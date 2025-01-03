@@ -14,6 +14,8 @@ import (
 	"github.com/vishvananda/netns"
 )
 
+var rootNetworkNamespace netns.NsHandle
+
 // go run main.go run <cmd> <args>
 func main() {
 	switch os.Args[1] {
@@ -83,8 +85,14 @@ func must(err error) {
 }
 
 func createNetworkNamespace() {
+	var err error
+	rootNetworkNamespace, err = netns.Get()
+	if err != nil {
+		log.Fatalf("Failed to get root namespace: %v", err)
+	}
+
 	// Enable IP forwarding
-	err := os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0644)
+	err = os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("1"), 0644)
 	if err != nil {
 		log.Fatalf("Failed to enable IP forwarding: %v", err)
 	}
@@ -95,7 +103,6 @@ func createNetworkNamespace() {
 	if err != nil {
 		log.Fatalf("Failed to create network namespace: %v", err)
 	}
-	defer newNs.Close()
 
 	// Create veth pair
 	veth0 := "veth0"
@@ -122,7 +129,6 @@ func createNetworkNamespace() {
 	if err != nil {
 		log.Fatalf("Failed to switch to namespace: %v", err)
 	}
-	defer netns.Set(netns.None())
 
 	linkVeth1, err = netlink.LinkByName(veth1)
 	if err != nil {
@@ -137,7 +143,7 @@ func createNetworkNamespace() {
 	}
 
 	// Create and set up the bridge
-	err = netns.Set(netns.None())
+	err = netns.Set(rootNetworkNamespace)
 	if err != nil {
 		log.Fatalf("Failed to switch to root namespace: %v", err)
 	}
@@ -191,6 +197,8 @@ func destroyNetworkNamespace() {
 	veth0 := "veth0"
 	namespace := "net1"
 	externalIf := "ens160"
+
+	netns.Set(rootNetworkNamespace)
 
 	// Step 1: Delete the bridge
 	brLink, err := netlink.LinkByName(bridge)
