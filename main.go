@@ -82,7 +82,7 @@ func child() {
 }
 
 func cg() *cgroup2.Manager {
-cgroupPath := "/sys/fs/cgroup/pids/cparker" // Adjust the path accordingly
+	cgroupPath := "/sys/fs/cgroup/pids/cparker" // Adjust the path accordingly
 
 	// Load the cgroup
 	cg, err := cgroup2.Load(cgroupPath)
