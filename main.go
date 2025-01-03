@@ -7,8 +7,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strconv"
 	"syscall"
 
 	"github.com/containerd/cgroups/v3/cgroup2"
