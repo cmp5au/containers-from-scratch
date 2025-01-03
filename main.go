@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netlink/nl"
 	"github.com/vishvananda/netns"
 )
 
@@ -128,7 +129,11 @@ func createNetworkNamespace() {
 		log.Fatalf("Failed to add veth0 to bridge: %v", err)
 	}
 
-	externalIf := "ens160" // Change this to your external interface name
+	externalIf, err := getDefaultRouteInterface()
+	if err != nil {
+		log.Fatalf("Failed to get external default route interface: %v", err)
+	}
+
 	linkExt, err := netlink.LinkByName(externalIf)
 	if err != nil {
 		interfaces, newErr := netlink.LinkList()
@@ -204,7 +209,10 @@ func destroyNetworkNamespace() {
 	bridge := "br0"
 	veth0 := "veth0"
 	namespace := "net1"
-	externalIf := "ens160"
+	externalIf, err := getDefaultRouteInterface()
+	if err != nil {
+		log.Printf("Failed to get external default route interface: %v", err)
+	}
 
 	netns.Set(rootNetworkNamespace)
 
@@ -243,15 +251,17 @@ func destroyNetworkNamespace() {
 	}
 
 	// Step 4: Remove the external interface from the bridge (if applicable)
-	extLink, err := netlink.LinkByName(externalIf)
-	if err == nil {
-		if err := netlink.LinkSetNoMaster(extLink); err != nil {
-			log.Printf("Failed to remove external interface %s from bridge: %v", externalIf, err)
+	if externalIf != "" {
+		extLink, err := netlink.LinkByName(externalIf)
+		if err == nil {
+			if err := netlink.LinkSetNoMaster(extLink); err != nil {
+				log.Printf("Failed to remove external interface %s from bridge: %v", externalIf, err)
+			} else {
+				log.Printf("External interface %s detached from bridge.", externalIf)
+			}
 		} else {
-			log.Printf("External interface %s detached from bridge.", externalIf)
+			log.Printf("External interface %s not found: %v", externalIf, err)
 		}
-	} else {
-		log.Printf("External interface %s not found: %v", externalIf, err)
 	}
 
 	err = os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("0"), 0644)
@@ -261,4 +271,27 @@ func destroyNetworkNamespace() {
 	log.Println("IP forwarding disabled.")
 
 	log.Println("Tear-down completed.")
+}
+
+func getDefaultRouteInterface() (string, error) {
+	// Get the list of routes
+	routes, err := netlink.RouteList(nil, nl.FAMILY_ALL)
+	if err != nil {
+		return "", err
+	}
+
+	// Iterate through the routes and find the default route (0.0.0.0/0)
+	for _, route := range routes {
+		if route.Dst == nil { // Default route
+			// Get the interface by its index
+			link, err := netlink.LinkByIndex(route.LinkIndex)
+			if err != nil {
+				return "", err
+			}
+			// Return the name of the link
+			return link.Attrs().Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("default route not found")
 }
