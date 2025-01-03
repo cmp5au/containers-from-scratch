@@ -1,3 +1,4 @@
+// +build linux
 package main
 
 import (
@@ -16,6 +17,10 @@ import (
 )
 
 var rootNetworkNamespace netns.NsHandle
+var veth0 string = "veth0"
+var veth1 string = "veth1"
+var	bridge string = "br0"
+var	namespace string = "net1"
 
 // go run main.go run <cmd> <args>
 func main() {
@@ -110,8 +115,6 @@ func createNetworkNamespace() {
 	}
 
 	// Create veth pair
-	veth0 := "veth0"
-	veth1 := "veth1"
 	veth := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{Name: veth0},
 		PeerName:  veth1,
@@ -206,9 +209,6 @@ func createNetworkNamespace() {
 func destroyNetworkNamespace() {
 	log.Println("Tearing down network namespace and associated configurations...")
 
-	bridge := "br0"
-	veth0 := "veth0"
-	namespace := "net1"
 	externalIf, err := getDefaultRouteInterface()
 	if err != nil {
 		log.Printf("Failed to get external default route interface: %v", err)
