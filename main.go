@@ -23,6 +23,8 @@ func main() {
 		run()
 	case "child":
 		child()
+	case "teardown":
+		destroyNetworkNamespace()
 	default:
 		panic("help")
 	}
@@ -104,6 +106,15 @@ func createNetworkNamespace() {
 		log.Fatalf("Failed to create network namespace: %v", err)
 	}
 
+	// Create and set up the bridge
+	br := &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: "br0"}}
+	if err := netlink.LinkAdd(br); err != nil {
+		log.Fatalf("Failed to create bridge: %v", err)
+	}
+	if err := netlink.LinkSetUp(br); err != nil {
+		log.Fatalf("Failed to set bridge up: %v", err)
+	}
+
 	// Create veth pair
 	veth0 := "veth0"
 	veth1 := "veth1"
@@ -113,6 +124,24 @@ func createNetworkNamespace() {
 	}
 	if err := netlink.LinkAdd(veth); err != nil {
 		log.Fatalf("Failed to create veth pair: %v", err)
+	}
+
+	// Add veth0 and external interface to bridge
+	linkVeth0, err := netlink.LinkByName(veth0)
+	if err != nil {
+		log.Fatalf("Failed to get veth0 link: %v", err)
+	}
+	if err := netlink.LinkSetMaster(linkVeth0, br); err != nil {
+		log.Fatalf("Failed to add veth0 to bridge: %v", err)
+	}
+
+	externalIf := "ens160" // Change this to your external interface name
+	linkExt, err := netlink.LinkByName(externalIf)
+	if err != nil {
+		log.Fatalf("Failed to get external interface: %v", err)
+	}
+	if err := netlink.LinkSetMaster(linkExt, br); err != nil {
+		log.Fatalf("Failed to add external interface to bridge: %v", err)
 	}
 
 	// Move veth1 to the new namespace
@@ -142,40 +171,7 @@ func createNetworkNamespace() {
 		log.Fatalf("Failed to set veth1 up: %v", err)
 	}
 
-	// Create and set up the bridge
-	err = netns.Set(rootNetworkNamespace)
-	if err != nil {
-		log.Fatalf("Failed to switch to root namespace: %v", err)
-	}
-
-	br := &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: "br0"}}
-	if err := netlink.LinkAdd(br); err != nil {
-		log.Fatalf("Failed to create bridge: %v", err)
-	}
-	if err := netlink.LinkSetUp(br); err != nil {
-		log.Fatalf("Failed to set bridge up: %v", err)
-	}
-
-	// Add veth0 and external interface to bridge
-	linkVeth0, err := netlink.LinkByName(veth0)
-	if err != nil {
-		log.Fatalf("Failed to get veth0 link: %v", err)
-	}
-	if err := netlink.LinkSetMaster(linkVeth0, br); err != nil {
-		log.Fatalf("Failed to add veth0 to bridge: %v", err)
-	}
-
-	externalIf := "ens160" // Change this to your external interface name
-	linkExt, err := netlink.LinkByName(externalIf)
-	if err != nil {
-		log.Fatalf("Failed to get external interface: %v", err)
-	}
-	if err := netlink.LinkSetMaster(linkExt, br); err != nil {
-		log.Fatalf("Failed to add external interface to bridge: %v", err)
-	}
-
 	// Add default route inside the namespace
-	err = netns.Set(newNs)
 	if err != nil {
 		log.Fatalf("Failed to switch to namespace: %v", err)
 	}
