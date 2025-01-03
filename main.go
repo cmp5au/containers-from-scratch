@@ -138,7 +138,11 @@ func createNetworkNamespace() {
 	externalIf := "ens160" // Change this to your external interface name
 	linkExt, err := netlink.LinkByName(externalIf)
 	if err != nil {
-		log.Fatalf("Failed to get external interface: %v", err)
+		interfaces, newErr := netlink.LinkList()
+		if newErr != nil {
+			log.Fatalf("Failed to get external interface: %v\nFailed to list interfaces: %v", err, newErr)
+		}
+		log.Fatalf("Failed to get external interface: %v\nAvailable interfaces are: %v", err, interfaces)
 	}
 	if err := netlink.LinkSetMaster(linkExt, br); err != nil {
 		log.Fatalf("Failed to add external interface to bridge: %v", err)
