@@ -133,6 +133,23 @@ func must(err error) {
 	}
 }
 
+/*
+The following shell commands are adapted from "Networking and Kubernetes" by James
+Strong and Vallery Lancey, and represent the basis of what createNetworkNamespace is
+doing on the root network namespace and the newly-created network namespace:
+
+$ echo 1 > /proc/sys/net/ipv4/ip_forward
+$ sudo ip link add br0 type bridge
+$ sudo ip link set dev br0 up
+$ sudo ip link add veth0 type veth peer name veth1
+$ sudo ip link set veth0 master br0
+$ sudo ip link set enp0s3 master br0
+$ sudo ip netns add net1
+$ sudo ip link set veth1 netns net1
+$ sudo ip netns exec net1 ip addr add 192.168.119.111/24 dev veth1
+$ sudo ip netns exec net1 ip link set dev veth1 up
+$ sudo ip netns exec net1 ip route add default via 192.168.1.100
+*/
 func createNetworkNamespace() {
 	var err error
 	rootNetworkNamespace, err = netns.Get()
@@ -154,14 +171,14 @@ func createNetworkNamespace() {
 	if err := netlink.LinkSetUp(br); err != nil {
 		log.Fatalf("Failed to set bridge up: %v", err)
 	}
-	addr, _ := netlink.ParseAddr("192.168.119.200/24")
-	if err := netlink.AddrAdd(br, addr); err != nil {
-		log.Fatalf("Failed to assign root namespace subnet IP to br0: %v", err)
-	}
-	addr, _ = netlink.ParseAddr("192.168.1.1/24")
-	if err := netlink.AddrAdd(br, addr); err != nil {
-		log.Fatalf("Failed to assign new namespace subnet IP to br0: %v", err)
-	}
+	// addr, _ := netlink.ParseAddr("192.168.119.200/24")
+	// if err := netlink.AddrAdd(br, addr); err != nil {
+	// 	log.Fatalf("Failed to assign root namespace subnet IP to br0: %v", err)
+	// }
+	// addr, _ = netlink.ParseAddr("192.168.1.1/24")
+	// if err := netlink.AddrAdd(br, addr); err != nil {
+	// 	log.Fatalf("Failed to assign new namespace subnet IP to br0: %v", err)
+	// }
 
 	// create veth pair
 	veth := &netlink.Veth{
@@ -180,10 +197,10 @@ func createNetworkNamespace() {
 	if err := netlink.LinkSetMaster(linkVeth0, br); err != nil {
 		log.Fatalf("Failed to add veth0 to bridge: %v", err)
 	}
-	addr, _ = netlink.ParseAddr("192.168.1.100/24")
-	if err := netlink.AddrAdd(linkVeth0, addr); err != nil {
-		log.Fatalf("Failed to assign IP to veth0: %v", err)
-	}
+	// addr, _ = netlink.ParseAddr("192.168.1.100/24")
+	// if err := netlink.AddrAdd(linkVeth0, addr); err != nil {
+	// 	log.Fatalf("Failed to assign IP to veth0: %v", err)
+	// }
 
 	externalIf, err := getDefaultRouteInterface()
 	if err != nil {
@@ -235,7 +252,7 @@ func createNetworkNamespace() {
 	if err != nil {
 		log.Fatalf("Failed to get veth1 in namespace: %v", err)
 	}
-	addr, _ = netlink.ParseAddr("192.168.1.101/24")
+	addr, _ := netlink.ParseAddr("192.168.119.111/24")
 	if err := netlink.AddrAdd(linkVeth1, addr); err != nil {
 		log.Fatalf("Failed to assign IP to veth1: %v", err)
 	}
