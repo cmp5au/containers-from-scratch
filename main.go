@@ -56,7 +56,16 @@ func child() {
 
 	cg := cg()
 	defer func() {
-		err := cg.Delete()
+		// move current process back into user.slice CG so that custom CG is clear for cleanup
+		userCG, err := cgroup2.Load("/user.slice")
+		if err != nil {
+			log.Printf("Failed to load default user.slice cgroup: %v", err)
+			return
+		}
+		pid := os.Getpid()
+		err = userCG.AddProc(uint64(pid))
+
+		err = cg.Delete()
 		if err != nil {
 			log.Printf("Failed to delete cgroup: %v", err)
 		} else {
@@ -73,20 +82,20 @@ func child() {
 	must(syscall.Chroot("/container-test/ubuntu-fs"))
 	must(os.Chdir("/"))
 	must(syscall.Mount("proc", "proc", "proc", 0, ""))
-	must(syscall.Mount("thing", "mytemp", "tmpfs", 0, ""))
+	// must(syscall.Mount("thing", "mytemp", "tmpfs", 0, ""))
 
 	must(cmd.Run())
 
 	must(syscall.Unmount("proc", 0))
-	must(syscall.Unmount("thing", 0))
+	// must(syscall.Unmount("thing", 0))
 }
 
 func cg() *cgroup2.Manager {
-	cgroupPath := "/sys/fs/cgroup/user.slice/new_cgroup" // Adjust the path accordingly
+	cgroupPath := "/user.slice/new_cgroup" // Adjust the path accordingly
 
 	// Check if the cgroup exists, and create it if necessary
-	if _, err := os.Stat(cgroupPath); os.IsNotExist(err) {
-		err := os.MkdirAll(cgroupPath, 0755) // Create the cgroup directory
+	if _, err := os.Stat("/sys/fs/cgroup" + cgroupPath); os.IsNotExist(err) {
+		err := os.MkdirAll("/sys/fs/cgroup" + cgroupPath, 0755) // Create the cgroup directory
 		if err != nil {
 			log.Fatalf("Failed to create cgroup: %v", err)
 		}
