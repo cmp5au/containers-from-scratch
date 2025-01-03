@@ -39,6 +39,29 @@ func run() {
 	createNetworkNamespace()
 	defer destroyNetworkNamespace()
 
+	defer func() {
+		// move current process back into user.slice CG so that custom CG is clear for cleanup
+		userCG, err := cgroup2.Load("/user.slice")
+		if err != nil {
+			log.Printf("Failed to load default user.slice cgroup: %v", err)
+			return
+		}
+		pid := os.Getpid()
+		err = userCG.AddProc(uint64(pid))
+
+		cg, err := cgroup2.Load("/user.slice/new_cgroup")
+		if err != nil {
+			log.Printf("Failed to load cgroup: %v", err)
+			return
+		}
+		err = cg.Delete()
+		if err != nil {
+			log.Printf("Failed to delete cgroup: %v", err)
+		} else {
+			fmt.Println("Cgroup deleted successfully.")
+		}
+	}()
+
 	cmd := exec.Command("/proc/self/exe", append([]string{"child"}, os.Args[2:]...)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -54,24 +77,7 @@ func run() {
 func child() {
 	fmt.Printf("Running %v \n", os.Args[2:])
 
-	cg := cg()
-	defer func() {
-		// move current process back into user.slice CG so that custom CG is clear for cleanup
-		userCG, err := cgroup2.Load("/user.slice")
-		if err != nil {
-			log.Printf("Failed to load default user.slice cgroup: %v", err)
-			return
-		}
-		pid := os.Getpid()
-		err = userCG.AddProc(uint64(pid))
-
-		err = cg.Delete()
-		if err != nil {
-			log.Printf("Failed to delete cgroup: %v", err)
-		} else {
-			fmt.Println("Cgroup deleted successfully.")
-		}
-	}()
+	cg()
 
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
 	cmd.Stdin = os.Stdin
@@ -90,7 +96,7 @@ func child() {
 	// must(syscall.Unmount("thing", 0))
 }
 
-func cg() *cgroup2.Manager {
+func cg() {
 	cgroupPath := "/user.slice/new_cgroup" // Adjust the path accordingly
 
 	// Check if the cgroup exists, and create it if necessary
@@ -120,7 +126,6 @@ func cg() *cgroup2.Manager {
 	if err != nil {
 		log.Fatalf("Failed to add process to cgroup: %v", err)
 	}
-	return cg
 }
 
 func must(err error) {
