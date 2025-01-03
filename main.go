@@ -142,7 +142,11 @@ func createNetworkNamespace() {
 		if newErr != nil {
 			log.Fatalf("Failed to get external interface: %v\nFailed to list interfaces: %v", err, newErr)
 		}
-		log.Fatalf("Failed to get external interface: %v\nAvailable interfaces are: %v", err, interfaces)
+		interfaceNames := make([]string, len(interfaces))
+		for i, itfc := range interfaces {
+			interfaceNames[i] = itfc.Attrs().Name
+		}
+		log.Fatalf("Failed to get external interface: %v\nAvailable interfaces are: %v", err, interfaceNames)
 	}
 	if err := netlink.LinkSetMaster(linkExt, br); err != nil {
 		log.Fatalf("Failed to add external interface to bridge: %v", err)
