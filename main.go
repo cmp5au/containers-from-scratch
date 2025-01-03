@@ -99,13 +99,6 @@ func createNetworkNamespace() {
 		log.Fatalf("Failed to enable IP forwarding: %v", err)
 	}
 
-	// Create a network namespace
-	netnsName := "net1"
-	newNs, err := netns.NewNamed(netnsName)
-	if err != nil {
-		log.Fatalf("Failed to create network namespace: %v", err)
-	}
-
 	// Create and set up the bridge
 	br := &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: "br0"}}
 	if err := netlink.LinkAdd(br); err != nil {
@@ -152,7 +145,18 @@ func createNetworkNamespace() {
 		log.Fatalf("Failed to add external interface to bridge: %v", err)
 	}
 
+	// Create a network namespace
+	netnsName := "net1"
+	newNs, err := netns.NewNamed(netnsName)
+	if err != nil {
+		log.Fatalf("Failed to create network namespace: %v", err)
+	}
+
 	// Move veth1 to the new namespace
+	err = netns.Set(rootNetworkNamespace)
+	if err != nil {
+		log.Fatalf("Failed to switch to root network namespace: %v", err)
+	}
 	linkVeth1, err := netlink.LinkByName(veth1)
 	if err != nil {
 		log.Fatalf("Failed to get veth1 link: %v", err)
