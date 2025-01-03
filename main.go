@@ -80,7 +80,7 @@ func cg() {
 	cgroups := "/sys/fs/cgroup/"
 	pids := filepath.Join(cgroups, "pids")
 	os.Mkdir(filepath.Join(pids, "cparker"), 0755)
-	must(os.WriteFile(filepath.Join(pids, "cparker/pids.max"), []byte("20"), 0700))
+	// must(os.WriteFile(filepath.Join(pids, "cparker/pids.max"), []byte("20"), 0700))
 	// Removes the new cgroup in place after the container exits
 	must(os.WriteFile(filepath.Join(pids, "cparker/notify_on_release"), []byte("1"), 0700))
 	must(os.WriteFile(filepath.Join(pids, "cparker/cgroup.procs"), []byte(strconv.Itoa(os.Getpid())), 0700))
