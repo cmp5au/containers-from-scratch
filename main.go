@@ -82,7 +82,7 @@ func child() {
 }
 
 func cg() *cgroup2.Manager {
-	cgroupPath := "/sys/fs/cgroup/pids/cparker" // Adjust the path accordingly
+	cgroupPath := "/sys/fs/cgroup/user.slice/new_cgroup" // Adjust the path accordingly
 
 	// Check if the cgroup exists, and create it if necessary
 	if _, err := os.Stat(cgroupPath); os.IsNotExist(err) {
