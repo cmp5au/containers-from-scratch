@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/containerd/cgroups/v3/cgroup2"
 	"github.com/vishvananda/netlink"
 	"github.com/vishvananda/netlink/nl"
 	"github.com/vishvananda/netns"
@@ -29,8 +30,6 @@ func main() {
 		run()
 	case "child":
 		child()
-	case "teardown":
-		destroyNetworkNamespace()
 	default:
 		panic("help")
 	}
@@ -57,7 +56,15 @@ func run() {
 func child() {
 	fmt.Printf("Running %v \n", os.Args[2:])
 
-	cg()
+	cg := cg()
+	defer func() {
+		err := cg.Delete()
+		if err != nil {
+			log.Printf("Failed to delete cgroup: %v", err)
+		} else {
+			fmt.Println("Cgroup deleted successfully.")
+		}
+	}()
 
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
 	cmd.Stdin = os.Stdin
@@ -76,14 +83,29 @@ func child() {
 	must(syscall.Unmount("thing", 0))
 }
 
-func cg() {
-	cgroups := "/sys/fs/cgroup/"
-	pids := filepath.Join(cgroups, "pids")
-	os.Mkdir(filepath.Join(pids, "cparker"), 0755)
-	// must(os.WriteFile(filepath.Join(pids, "cparker/pids.max"), []byte("20"), 0700))
-	// Removes the new cgroup in place after the container exits
-	must(os.WriteFile(filepath.Join(pids, "cparker/notify_on_release"), []byte("1"), 0700))
-	must(os.WriteFile(filepath.Join(pids, "cparker/cgroup.procs"), []byte(strconv.Itoa(os.Getpid())), 0700))
+func cg() *cgroup2.Manager {
+cgroupPath := "/sys/fs/cgroup/pids/cparker" // Adjust the path accordingly
+
+	// Load the cgroup
+	cg, err := cgroup2.Load(cgroupPath)
+	if err != nil {
+		log.Fatalf("Failed to load cgroup: %v", err)
+	}
+
+	// Set the max number of PIDs in the cgroup (pids.max)
+	err = cg.Update(&cgroup2.Resources{Pids: &cgroup2.Pids{Max: 20}})
+	if err != nil {
+		log.Fatalf("Failed to set pids.max: %v", err)
+	}
+
+	// Add a process to the cgroup (for demonstration, using the current process)
+	// Replace with your process ID (pid) as needed
+	pid := os.Getpid() // Example: Add the current process to the cgroup
+	err = cg.AddProc(uint64(pid))
+	if err != nil {
+		log.Fatalf("Failed to add process to cgroup: %v", err)
+	}
+	return cg
 }
 
 func must(err error) {
