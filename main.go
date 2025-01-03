@@ -113,7 +113,7 @@ func createNetworkNamespace() {
 	if err != nil {
 		log.Fatalf("Failed to get veth1 link: %v", err)
 	}
-	if err := netlink.LinkSetNsFd(linkVeth1, int(newNs.Fd())); err != nil {
+	if err := netlink.LinkSetNsFd(linkVeth1, int(newNs)); err != nil {
 		log.Fatalf("Failed to move veth1 to namespace: %v", err)
 	}
 
