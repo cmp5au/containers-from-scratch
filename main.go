@@ -282,7 +282,7 @@ func getDefaultRouteInterface() (string, error) {
 
 	// Iterate through the routes and find the default route (0.0.0.0/0)
 	for _, route := range routes {
-		if route.Dst == nil { // Default route
+		if route.Dst == nil || route.Dst.IP.IsUnspecified() { // Default route
 			// Get the interface by its index
 			link, err := netlink.LinkByIndex(route.LinkIndex)
 			if err != nil {
