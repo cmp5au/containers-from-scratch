@@ -30,6 +30,8 @@ func main() {
 		run()
 	case "child":
 		child()
+	case "grandchild":
+		grandchild()
 	default:
 		panic("help")
 	}
@@ -77,7 +79,7 @@ func run() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags:   syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
+		Cloneflags:   syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWIPC,
 		Unshareflags: syscall.CLONE_NEWNS,
 	}
 
@@ -89,10 +91,27 @@ func child() {
 
 	cg()
 
-	cmd := exec.Command(os.Args[2], os.Args[3:]...)
+	cmd := exec.Command("/proc/self/exe", append([]string{"grandchild"}, os.Args[2:]...)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: syscall.CLONE_NEWUSER,
+		UidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: 1000,
+				HostID:      os.Getuid(),
+				Size:        1,
+			},
+		},
+		GidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: 1000,
+				HostID:      os.Getgid(),
+				Size:        1,
+			},
+		},
+	}
 
 	must(syscall.Sethostname([]byte("container")))
 	must(syscall.Chroot("/container-test/ubuntu-fs"))
@@ -104,6 +123,17 @@ func child() {
 
 	must(syscall.Unmount("proc", 0))
 	// must(syscall.Unmount("thing", 0))
+}
+
+func grandchild() {
+	log.Printf("Running %v \n", os.Args[2:])
+
+	cmd := exec.Command(os.Args[2], os.Args[3:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	must(cmd.Run())
 }
 
 func cg() {
