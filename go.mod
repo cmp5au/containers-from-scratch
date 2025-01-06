@@ -4,6 +4,7 @@ go 1.23.1
 
 require (
 	github.com/containerd/cgroups/v3 v3.0.5
+	github.com/coreos/go-iptables v0.8.0
 	github.com/vishvananda/netlink v1.3.0
 	github.com/vishvananda/netns v0.0.5
 )
