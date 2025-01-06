@@ -1,4 +1,5 @@
 //go:build linux
+
 package main
 
 import (
@@ -162,16 +163,19 @@ $ cp /etc/resolv.conf /etc/netns/$$/resolv.conf
 */
 func createNetworkNamespace() error {
 	// create and set up the bridge
-	br := &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: "br0"}}
-	if err := netlink.LinkAdd(br); err != nil {
-		return fmt.Errorf("Failed to create bridge: %v", err)
-	}
-	if err := netlink.LinkSetUp(br); err != nil {
-		return fmt.Errorf("Failed to set bridge up: %v", err)
-	}
-	addr, _ := netlink.ParseAddr("10.0.0.1/24")
-	if err := netlink.AddrAdd(br, addr); err != nil {
-		return fmt.Errorf("Failed to assign IP to br0: %v", err)
+	br, err := netlink.LinkByName(bridge)
+	if _, ok := err.(netlink.LinkNotFoundError); ok {
+		br = &netlink.Bridge{LinkAttrs: netlink.LinkAttrs{Name: bridge}}
+		if err := netlink.LinkAdd(br); err != nil {
+			return fmt.Errorf("Failed to create bridge: %v", err)
+		}
+		if err := netlink.LinkSetUp(br); err != nil {
+			return fmt.Errorf("Failed to set bridge up: %v", err)
+		}
+		addr, _ := netlink.ParseAddr("10.0.0.1/24")
+		if err := netlink.AddrAdd(br, addr); err != nil {
+			return fmt.Errorf("Failed to assign IP to br0: %v", err)
+		}
 	}
 
 	// create veth pair
@@ -223,7 +227,7 @@ func createNetworkNamespace() error {
 	if err != nil {
 		return fmt.Errorf("Failed to get veth1 in namespace: %v", err)
 	}
-	addr, _ = netlink.ParseAddr("10.0.0.2/24")
+	addr, _ := netlink.ParseAddr("10.0.0.2/24")
 	if err := netlink.AddrAdd(linkVeth1, addr); err != nil {
 		return fmt.Errorf("Failed to assign IP to veth1: %v", err)
 	}
