@@ -206,6 +206,13 @@ func createNetworkNamespace() error {
 	if err != nil {
 		return fmt.Errorf("Failed to create network namespace: %v", err)
 	}
+	linkLo, err := netlink.LinkByName("lo")
+	if err != nil {
+		return fmt.Errorf("Failed to get loopback address in new namespace: %v", err)
+	}
+	if err = netlink.LinkSetUp(linkLo); err != nil {
+		return fmt.Errorf("Failed to set lo up: %v", err)
+	}
 	if _, err := os.Stat("/etc/netns/" + networkNamespace); os.IsNotExist(err) {
 		if err = os.MkdirAll("/etc/netns/"+networkNamespace, 0755); err != nil {
 			return fmt.Errorf("Failed to create a network namespace directory in /etc/netns: %v", err)
