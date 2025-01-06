@@ -37,6 +37,12 @@ func main() {
 func run() {
 	log.Printf("Running %v \n", os.Args[2:])
 
+	var err error
+	rootNetworkNamespace, err = netns.Get()
+	if err != nil {
+		log.Fatalf("Failed to retrieve root network namespace: %v", err)
+	}
+
 	must(setupIpForwarding())
 	must(createNetworkNamespace())
 	defer destroyNetworkNamespace()
