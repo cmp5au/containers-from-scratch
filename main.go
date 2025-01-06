@@ -20,8 +20,8 @@ import (
 var rootNetworkNamespace netns.NsHandle
 var veth0 string = "veth0"
 var veth1 string = "veth1"
-var	bridge string = "br0"
-var	networkNamespace string = "runit-netns"
+var bridge string = "br0"
+var networkNamespace string = "runit-netns"
 
 // go run main.go run <cmd> <args>
 func main() {
@@ -59,7 +59,6 @@ func run() {
 		pid := os.Getpid()
 		err = userCG.AddProc(uint64(pid))
 
- 
 		cg, err := cgroup2.Load("/user.slice/new_cgroup")
 		if err != nil {
 			log.Printf("Failed to load cgroup: %v", err)
@@ -112,7 +111,7 @@ func cg() {
 
 	// check if the cgroup exists, create it if necessary
 	if _, err := os.Stat("/sys/fs/cgroup" + cgroupPath); os.IsNotExist(err) {
-		err := os.MkdirAll("/sys/fs/cgroup" + cgroupPath, 0755)
+		err := os.MkdirAll("/sys/fs/cgroup"+cgroupPath, 0755)
 		if err != nil {
 			log.Fatalf("Failed to create cgroup: %v", err)
 		}
@@ -179,30 +178,41 @@ func createNetworkNamespace() error {
 	}
 
 	// create veth pair
-	veth := &netlink.Veth{
-		LinkAttrs: netlink.LinkAttrs{Name: veth0},
-		PeerName:  veth1,
-	}
-	if err := netlink.LinkAdd(veth); err != nil {
-		return fmt.Errorf("Failed to create veth pair: %v", err)
-	}
+	_, err = netlink.LinkByName(veth0)
+	if _, ok := err.(netlink.LinkNotFoundError); ok {
+		veth := &netlink.Veth{
+			LinkAttrs: netlink.LinkAttrs{Name: veth0},
+			PeerName:  veth1,
+		}
+		if err := netlink.LinkAdd(veth); err != nil {
+			return fmt.Errorf("Failed to create veth pair: %v", err)
+		}
 
-	// add veth0 and external interface to bridge
-	linkVeth0, err := netlink.LinkByName(veth0)
-	if err != nil {
-		return fmt.Errorf("Failed to get veth0 link: %v", err)
-	}
-	if err := netlink.LinkSetMaster(linkVeth0, br); err != nil {
-		return fmt.Errorf("Failed to add veth0 to bridge: %v", err)
-	}
-	if err := netlink.LinkSetUp(linkVeth0); err != nil {
-		return fmt.Errorf("Failed to set veth0 up: %v", err)
+		// add veth0 and external interface to bridge
+		linkVeth0, err := netlink.LinkByName(veth0)
+		if err != nil {
+			return fmt.Errorf("Failed to get veth0 link: %v", err)
+		}
+		if err := netlink.LinkSetMaster(linkVeth0, br); err != nil {
+			return fmt.Errorf("Failed to add veth0 to bridge: %v", err)
+		}
+		if err := netlink.LinkSetUp(linkVeth0); err != nil {
+			return fmt.Errorf("Failed to set veth0 up: %v", err)
+		}
 	}
 
 	// create a new network namespace
 	newNs, err := netns.NewNamed(networkNamespace)
 	if err != nil {
 		return fmt.Errorf("Failed to create network namespace: %v", err)
+	}
+	if _, err := os.Stat("/etc/netns/" + networkNamespace); os.IsNotExist(err) {
+		if err = os.MkdirAll("/etc/netns/"+networkNamespace, 0755); err != nil {
+			return fmt.Errorf("Failed to create a network namespace directory in /etc/netns: %v", err)
+		}
+	}
+	if err = os.WriteFile("/etc/netns/"+networkNamespace+"/resolv.conf", []byte("nameserver 1.1.1.1"), 0644); err != nil {
+		return fmt.Errorf("Failed to write /etc/netns resolv.conf file: %v", err)
 	}
 
 	// move veth1 to the new namespace
@@ -285,7 +295,7 @@ func destroyNetworkNamespace() {
 		log.Printf("Namespace %s deleted.", networkNamespace)
 	}
 
-	// disable IP forwarding on host 
+	// disable IP forwarding on host
 	err = os.WriteFile("/proc/sys/net/ipv4/ip_forward", []byte("0"), 0644)
 	if err != nil {
 		log.Fatalf("Failed to disable IP forwarding: %v", err)
