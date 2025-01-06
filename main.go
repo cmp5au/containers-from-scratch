@@ -4,10 +4,12 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 
 	"github.com/containerd/cgroups/v3/cgroup2"
@@ -208,6 +210,26 @@ func setupNewNamespace() error {
 	}
 	if err := netlink.LinkSetNsFd(linkVeth0, int(rootNsHandle)); err != nil {
 		return fmt.Errorf("Failed to move veth0 to root namespace: %v", err)
+	}
+
+	newNsResolvConfPath := "/etc/netns/" + strconv.Itoa(os.Getpid())
+	err = os.MkdirAll(newNsResolvConfPath, 0755)
+	if err != nil {
+		return fmt.Errorf("Failed to create /etc/netns/<pid> directory: %v", err)
+	}
+	srcResolvConf, err := os.Open("/etc/resolv.conf")
+	if err != nil {
+		return fmt.Errorf("Failed to open source /etc/resolv.conf file: %v", err)
+	}
+	defer srcResolvConf.Close()
+	dstResolvConf, err := os.Create(newNsResolvConfPath + "resolv.conf")
+	if err != nil {
+		return fmt.Errorf("Failed to create destination resolv.conf: %v", err)
+	}
+	defer dstResolvConf.Close()
+	_, err = io.Copy(dstResolvConf, srcResolvConf)
+	if err != nil {
+		return fmt.Errorf("Failed to write resolv.conf to new netns: %v", err)
 	}
 
 	log.Println("Network setup completed successfully.")
